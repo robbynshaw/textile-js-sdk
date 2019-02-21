@@ -2,6 +2,8 @@
 
 > Javascript SDK for interacting with [Textile nodes](github/textileio/textile-go).
 
+[Detailed API Documentation](https://robbynshaw.github.io/textile-js-sdk/textile-js-sdk/0.1.0/)
+
 ## Installation
 
 ```sh
@@ -39,4 +41,4 @@ npm run build-docs
 ## Roadmap
 
 - [ ] Add to npm
-- [ ] Add docs to github pages
+- [x] Add docs to github pages
