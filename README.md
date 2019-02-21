@@ -7,7 +7,7 @@
 ```sh
 # Clone the repo
 git clone github.com/robbynshaw/textile-js-sdk
-cd textile-js
+cd textile-js-sdk
 npm install
 ```
 
