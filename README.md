@@ -24,16 +24,16 @@ await textile.peer.get();
 ## Development
 
 ```sh
-// Run all the tests
+# Run all the tests
 npm test
 
-// Linting
+# Linting
 npm run lint
 
-// Build the docs
+# Build the docs
 npm run build-docs
 
-// See package.json for other scripts
+# See package.json for other scripts
 ```
 
 ## Roadmap
