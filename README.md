@@ -6,6 +6,14 @@
 
 ## Installation
 
+### From npm
+
+```sh
+npm install textile-js-sdk
+```
+
+### From Source
+
 ```sh
 # Clone the repo
 git clone github.com/robbynshaw/textile-js-sdk
@@ -16,11 +24,11 @@ npm install
 ## Getting started
 
 ```js
-const Textile = require("./textile-js-sdk");
+const Textile = require("textile-js-sdk");
 
 const textile = new Textile();
-await textile.peer.get();
-// return PeerID of local node
+const peerid = await textile.peer.get();
+console.log("PeerID", peerid);
 ```
 
 ## Development
@@ -40,5 +48,5 @@ npm run build-docs
 
 ## Roadmap
 
-- [ ] Add to npm
+- [x] Add to npm
 - [x] Add docs to github pages
