@@ -1,3 +1,4 @@
+// Main modules
 const Peer = require("./modules/peer");
 // const Profile = require('./modules/profile'),
 // const Mills = require('./modules/mills'),
@@ -15,6 +16,9 @@ const File = require("./modules/file");
 // const Contacts = require('./modules/contacts'),
 // const IPFS = require('./modules/ipfs'),
 // const Confg = require('./modules/config'),
+
+// Other useful items
+const FileReceiver = require("./browser/filereceiver");
 
 // **** Definitions
 /**
@@ -47,4 +51,7 @@ class Textile {
   }
 }
 
-module.exports = Textile;
+module.exports = {
+  Textile,
+  FileReceiver
+};
