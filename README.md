@@ -1,6 +1,7 @@
 # textile-js-sdk
 
 > Javascript SDK for interacting with [Textile nodes](github/textileio/textile-go).
+> **API is very unstable** at the moment. Anything is subject to change.
 
 [Detailed API Documentation](https://robbynshaw.github.io/textile-js-sdk/textile-js-sdk/0.1.0/)
 
