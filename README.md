@@ -24,7 +24,7 @@ npm install
 ## Getting started
 
 ```js
-const Textile = require("textile-js-sdk");
+const { Textile } = require("textile-js-sdk");
 
 const textile = new Textile();
 const peerid = await textile.peer.get();
