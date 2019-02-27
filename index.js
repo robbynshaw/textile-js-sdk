@@ -17,9 +17,6 @@ const File = require("./modules/file");
 // const IPFS = require('./modules/ipfs'),
 // const Confg = require('./modules/config'),
 
-// Other useful items
-const FileReceiver = require("./browser/filereceiver");
-
 // **** Definitions
 /**
  * The options object for the client object
@@ -51,7 +48,4 @@ class Textile {
   }
 }
 
-module.exports = {
-  Textile,
-  FileReceiver
-};
+module.exports = Textile;

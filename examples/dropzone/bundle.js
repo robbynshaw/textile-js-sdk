@@ -187,6 +187,159 @@ process.chdir = function (dir) {
 process.umask = function() { return 0; };
 
 },{}],3:[function(require,module,exports){
+const Connection = require("../core/connection");
+
+// **** Private module methods ****
+function encodeValue(val) {
+  if (!val) {
+    return "";
+  }
+  return encodeURIComponent(val.toString());
+}
+
+/**
+ * Create 'args' like a CLI command would take
+ *
+ * @param {string[]} argsAr An array of arguments
+ * @private
+ */
+function getArgs(argsAr) {
+  if (!argsAr || !argsAr.length) {
+    return "";
+  }
+  return argsAr.map(ar => encodeValue(ar)).join(",");
+}
+
+/**
+ * Create 'options' like a CLI command would take.
+ *
+ * @param {Object.<string, string>} opts A map of option keys and values
+ * @private
+ */
+function getOpts(opts) {
+  if (!opts) {
+    return "";
+  }
+  return Object.keys(opts)
+    .map(key => `${key}=${encodeValue(opts[key])}`)
+    .join(",");
+}
+
+function createHeaders(args, opts, headers) {
+  const h = headers || {};
+  return {
+    ...h,
+    "X-Textile-Args": getArgs(args),
+    "X-Textile-Opts": getOpts(opts)
+  };
+}
+
+// **** Private variables
+const con = new WeakMap();
+
+/**
+ * API is the base class for all SDK modules.
+ *
+ * @params {ApiOptions] opts API options object
+ */
+class API {
+  constructor(opts) {
+    this.opts = opts;
+  }
+
+  con() {
+    let thisCon = con.get(this);
+    if (!thisCon) {
+      thisCon = Connection.get(this.opts);
+      con.set(this, thisCon);
+    }
+    return thisCon;
+  }
+
+  /**
+   * Make a post request to the Textile node
+   *
+   * @param {string} url The relative URL of the API endpoint
+   * @param {string[]} args An array of arguments to pass as Textile args headers
+   * @param {Object} opts An object of options to pass as Textile options headers
+   * @param {Object} data An object of data to post
+   */
+  async sendPost(url, args, opts, data, headers) {
+    return this.con()({
+      method: "post",
+      url,
+      headers: createHeaders(args, opts, headers),
+      data
+    });
+  }
+
+  /**
+   * Make a post request to the Textile node using a multi-part form
+   *
+   * @param {string} url The relative URL of the API endpoint
+   * @param {string[]} args An array of arguments to pass as Textile args headers
+   * @param {Object} opts An object of options to pass as Textile options headers
+   * @param {Object} data An object of data to post
+   */
+  async sendPostMultiPart(url, args, opts, data, headers) {
+    const h = createHeaders(args, opts, headers);
+    h["Content-Type"] = "multipart/form-data";
+
+    return this.con()({
+      method: "post",
+      url,
+      headers: h,
+      data
+    });
+  }
+
+  /**
+   * Make a get request to the Textile node
+   *
+   * @param {string} url The relative URL of the API endpoint
+   * @param {string[]} args An array of arguments to pass as Textile args headers
+   * @param {Object} opts An object of options to pass as Textile options headers
+   */
+  async sendGet(url, args, opts, headers) {
+    return this.con()({
+      method: "get",
+      url,
+      headers: createHeaders(args, opts, headers)
+    });
+  }
+}
+
+module.exports = API;
+
+},{"../core/connection":4}],4:[function(require,module,exports){
+const axios = require("axios");
+
+/**
+ * The connection module contains utilities for creating connections to a Textile node
+ */
+class Connection {
+  /**
+   * get() coerces the given options into a connection
+   */
+  static get(options) {
+    const opts = Connection.cleanOpts(options);
+
+    return axios.create({
+      baseURL: `${opts.url}:${opts.port}` // TODO this is flaky
+    });
+  }
+
+  static cleanOpts(options) {
+    const opts = options || {};
+    opts.url = opts.url || "http://127.0.0.1";
+    opts.port = opts.port || 40600;
+    return opts;
+  }
+}
+
+module.exports = Connection;
+
+},{"axios":15}],5:[function(require,module,exports){
 const { EventEmitter2 } = require("eventemitter2");
 
 // Credit for all this parsing goes to github.com/carsonfarmer
@@ -199,8 +352,6 @@ const { EventEmitter2 } = require("eventemitter2");
  * @param {bool} [options.throwOnNotImplemented] Throw an error when non-image types are processed
  *
  * @example
- * const { FileReceiver } = require("textile-js-sdk");
- *
  * const container = document.querySelector("#dropZone");
  * const fr = new FileReceiver();
  * fr.on("file.received", file => {
@@ -337,144 +488,49 @@ class FileReceiver extends EventEmitter2 {
 
 module.exports = FileReceiver;
 
-},{"eventemitter2":38}],4:[function(require,module,exports){
-const Connection = require("../core/connection");
+},{"eventemitter2":40}],6:[function(require,module,exports){
+const FileReceiver = require("../browser/file-receiver");
+const Textile = require("../../index");
 
-// **** Private module methods ****
-function encodeValue(val) {
-  if (!val) {
-    return "";
-  }
-  return encodeURIComponent(val.toString());
-}
-
-/**
- * Create 'args' like a CLI command would take
- *
- * @param {string[]} argsAr An array of arguments
- * @private
- */
-function getArgs(argsAr) {
-  if (!argsAr || !argsAr.length) {
-    return "";
-  }
-  return argsAr.map(ar => encodeValue(ar)).join(",");
-}
-
-/**
- * Create 'options' like a CLI command would take.
- *
- * @param {Object.<string, string>} opts A map of option keys and values
- * @private
- */
-function getOpts(opts) {
-  if (!opts) {
-    return "";
-  }
-  return Object.keys(opts)
-    .map(key => `${key}=${encodeValue(opts[key])}`)
-    .join(",");
-}
-
-function createHeaders(args, opts) {
-  return {
-    "X-Textile-Args": getArgs(args),
-    "X-Textile-Opts": getOpts(opts)
-  };
-}
-
-// **** Private variables
-const con = new WeakMap();
-
-/**
- * API is the base class for all SDK modules.
- *
- * @params {ApiOptions] opts API options object
- */
-class API {
-  constructor(opts) {
-    this.opts = opts;
-  }
-
-  con() {
-    let thisCon = con.get(this);
-    if (!thisCon) {
-      thisCon = Connection.get(this.opts);
-      con.set(this, thisCon);
-    }
-    return thisCon;
-  }
-
-  /**
-   * Make a post request to the Textile node
-   *
-   * @param {string} url The relative URL of the API endpoint
-   * @param {string[]} args An array of arguments to pass as Textile args headers
-   * @param {Object} opts An object of options to pass as Textile options headers
-   * @param {Object} data An object of data to post
-   */
-  async sendPost(url, args, opts, data) {
-    return this.con()({
-      method: "post",
-      url,
-      headers: createHeaders(args, opts),
-      data
-    });
-  }
-
-  /**
-   * Make a get request to the Textile node
-   *
-   * @param {string} url The relative URL of the API endpoint
-   * @param {string[]} args An array of arguments to pass as Textile args headers
-   * @param {Object} opts An object of options to pass as Textile options headers
-   */
-  async sendGet(url, args, opts) {
-    return this.con()({
-      method: "get",
-      url,
-      headers: createHeaders(args, opts)
-    });
-  }
-}
-
-module.exports = API;
-
-},{"../core/connection":5}],5:[function(require,module,exports){
-const axios = require("axios");
-
-/**
- * The connection module contains utilities for creating connections to a Textile node
- */
-class Connection {
-  /**
-   * get() coerces the given options into a connection
-   */
-  static get(options) {
-    const opts = Connection.cleanOpts(options);
-
-    return axios.create({
-      baseURL: `${opts.url}:${opts.port}` // TODO this is flaky
-    });
-  }
-
-  static cleanOpts(options) {
-    const opts = options || {};
-    opts.url = opts.url || "http://127.0.0.1";
-    opts.port = opts.port || 40600;
-    return opts;
-  }
-}
-
-module.exports = Connection;
-
-},{"axios":13}],6:[function(require,module,exports){
-const { FileReceiver } = require("../../index");
+const THREAD_NAME = "test-media";
 
 const container = document.querySelector("#dropZone");
 const fr = new FileReceiver();
-fr.on("file.received", file => {
-  console.log("File Received", file);
+
+fr.on("item.skipped", evt => {
+  console.log("Skipped Item", evt);
+});
+
+fr.on("file.received", async data => {
+  console.log("File Received", data);
+  const { data: file } = data;
+
+  const textile = new Textile();
+
+  const thread = await textile.thread.getByName(THREAD_NAME);
+  if (!thread) {
+    alert(
+      `Uh oh. We couldn't find a thread named '${THREAD_NAME}'. Please add it and try again!`
+    );
+    return;
+  }
+
+  const form = new FormData();
+  form.append("file", file, file.name);
+
+  try {
+    const added = await textile.thread.addFile(thread.id, form, {
+      caption: "Dropped file"
+    });
+
+    // Just add the json string to the document
+    const element = document.createElement("pre");
+    const node = document.createTextNode(JSON.stringify(added, null, 2));
+    element.appendChild(node);
+    document.body.appendChild(element);
+  } catch (ex) {
+    console.error(ex);
+  }
 });
 
 // Make sure to prevent both these events, or the drop
@@ -484,6 +540,11 @@ container.ondragenter = evt => {
 };
 container.ondragover = evt => {
   evt.preventDefault();
+  container.classList.add("hover");
+};
+container.ondragleave = evt => {
+  evt.preventDefault();
+  container.classList.remove("hover");
 };
 
 container.ondrop = evt => {
@@ -491,7 +552,95 @@ container.ondrop = evt => {
   fr.getEventImages(evt);
 };
 
-},{"../../index":7}],7:[function(require,module,exports){
+console.log("Ready to go!");
+
+},{"../../index":8,"../browser/file-receiver":5}],7:[function(require,module,exports){
+const toposort = require("toposort");
+
+class SchemaMiller {
+  static sortLinksByDependency(links) {
+    // Create an array of [ name, dependency ] for sorting
+    const linkAndDepends = Object.entries(links).map(([name, link]) => {
+      return [name, link.use];
+    });
+
+    // Sort the array into an execution order
+    const sorted = toposort(linkAndDepends).reverse();
+
+    // Refill the items in the sorted array
+    return (
+      sorted
+        // File is the original form so we don't need a method
+        .filter(name => {
+          return name !== ":file";
+        })
+        .map(name => {
+          const link = links[name];
+          link.name = name;
+          return link;
+        })
+    );
+  }
+
+  static normalizeOptions(schemaLink) {
+    const opts = schemaLink.opts || {};
+
+    // Check for top level opts
+    opts.plaintext = schemaLink.plaintext || opts.plaintext || false;
+    opts.pin = schemaLink.pin || opts.pin || false;
+
+    return {
+      ...schemaLink,
+      opts
+    };
+  }
+
+  static resolveDependency(method, payloadsByName) {
+    let use;
+
+    // Convert 'use' to hash of payload
+    if (method.use !== ":file") {
+      use = payloadsByName[method.use].hash;
+    }
+
+    const resolvedMethod = {
+      ...method
+    };
+    resolvedMethod.opts = resolvedMethod.opts || {};
+    resolvedMethod.opts.use = use;
+    return resolvedMethod;
+  }
+
+  // payload = Form: { 'file', file, file.name }
+  // TODO payload could be a stream or a form
+  static async mill(payload, schemaLinks, remoteMill) {
+    const sorted = SchemaMiller.sortLinksByDependency(schemaLinks);
+
+    const payloadsByName = {};
+    for (let i = 0; i < sorted.length; i += 1) {
+      let body = payload;
+      const normal = SchemaMiller.normalizeOptions(sorted[i]);
+      const resolved = SchemaMiller.resolveDependency(normal, payloadsByName);
+
+      if (resolved.opts.use) {
+        // It's a file. The hash will pass as the payload.
+        // Don't send the file again
+        body = undefined;
+      }
+
+      // Must be synchronous for dependencies
+      // eslint-disable-next-line no-await-in-loop
+      const milled = await remoteMill(resolved, body);
+      payloadsByName[milled.name] = milled;
+    }
+
+    return payloadsByName;
+  }
+}
+
+module.exports = SchemaMiller;
+
+},{"toposort":43}],8:[function(require,module,exports){
 // Main modules
 const Peer = require("./modules/peer");
 // const Profile = require('./modules/profile'),
@@ -510,9 +659,6 @@ const File = require("./modules/file");
 // const Contacts = require('./modules/contacts'),
 // const IPFS = require('./modules/ipfs'),
 // const Confg = require('./modules/config'),
-
-// Other useful items
-const FileReceiver = require("./browser/filereceiver");
 
 // **** Definitions
 /**
@@ -545,12 +691,9 @@ class Textile {
   }
 }
 
-module.exports = {
-  Textile,
-  FileReceiver
-};
+module.exports = Textile;
 
-},{"./browser/filereceiver":3,"./modules/block":8,"./modules/file":9,"./modules/peer":10,"./modules/schema":11,"./modules/thread":12}],8:[function(require,module,exports){
+},{"./modules/block":9,"./modules/file":10,"./modules/peer":12,"./modules/schema":13,"./modules/thread":14}],9:[function(require,module,exports){
 const API = require("../core/api.js");
 
 /**
@@ -584,7 +727,7 @@ class Block extends API {
 
 module.exports = Block;
 
-},{"../core/api.js":4}],9:[function(require,module,exports){
+},{"../core/api.js":3}],10:[function(require,module,exports){
 const { exec } = require("child_process");
 const API = require("../core/api.js");
 
@@ -636,7 +779,43 @@ class File extends API {
 
 module.exports = File;
 
-},{"../core/api.js":4,"child_process":1}],10:[function(require,module,exports){
+},{"../core/api.js":3,"child_process":1}],11:[function(require,module,exports){
+const API = require("../core/api.js");
+
+/**
+ * Mill is an API module for processing Textile mills
+ *
+ * @param {ApiOptions} opts API options object
+ * @extends API
+ */
+class Mill extends API {
+  constructor(opts) {
+    super(opts);
+    this.opts = opts;
+  }
+
+  /*
+   * Run a mill over a given payload
+   *
+   * @param {string} name Name of the mill. (Relative uri)
+   * @param {object} options Schema options for the mill
+   * @param {object} payload A multi-part form containing the payload
+   * @param {object} [headers] Extra headers to send in the request
+   */
+  async run(name, options, payload, headers) {
+    return this.sendPostMultiPart(
+      `api/v0/mills${name}`,
+      [],
+      options,
+      payload,
+      headers
+    );
+  }
+}
+
+module.exports = Mill;
+
+},{"../core/api.js":3}],12:[function(require,module,exports){
 const API = require("../core/api.js");
 
 /**
@@ -669,7 +848,7 @@ class Peer extends API {
 
 module.exports = Peer;
 
-},{"../core/api.js":4}],11:[function(require,module,exports){
+},{"../core/api.js":3}],13:[function(require,module,exports){
 const API = require("../core/api.js");
 
 // Schema endpoint does not currently exist, so hardcoding this for now
@@ -720,9 +899,12 @@ class Schema extends API {
 
 module.exports = Schema;
 
-},{"../core/api.js":4}],12:[function(require,module,exports){
+},{"../core/api.js":3}],14:[function(require,module,exports){
 const { EventEmitter2 } = require("eventemitter2");
+const FormData = require("form-data");
 const API = require("../core/api.js");
+const Mill = require("./mills");
+const SchemaMiller = require("../helpers/schema-miller");
 
 /**
  * Thread is an API module for managing Textile threads
@@ -736,6 +918,7 @@ class Thread extends API {
     super(opts);
     this.opts = opts;
     this.events = new EventEmitter2();
+    this.mill = new Mill(opts);
   }
 
   /** Retrieves a list of threads */
@@ -761,16 +944,19 @@ class Thread extends API {
   }
 
   /**
-   * Retrieve a thread by ID TODO
+   * Retrieve a thread by ID
+   *
+   * @param {string} threadId ID of the thread
    */
-  async getByID(threadId) {
+  async getById(threadId) {
+    const thread = await this.sendGet(`/api/v0/threads/${threadId}`);
+    return thread.data;
   }
-
-  /**
-   * Retrieve a threads peers TODO
-   */
-  async getPeers(threadId) {
-  }
+  //
+  //   /**
+  //    * Retrieve a threads peers TODO
+  //    */
+  //   async getPeers(threadId) {}
 
   /**
    * Add a new thread to your Textile node
@@ -791,34 +977,89 @@ class Thread extends API {
     return added.data;
   }
 
+  //   /**
+  //    * Add or update a thread in your Textile node TODO
+  //    */
+  //   async addOrUpdate(threadId, options) {}
+  //
+  //   /**
+  //    * Add messages to a thread in your Textile node TODO
+  //    */
+  //   async addMessages(threadId, msgs) {}
+
   /**
-   * Add or update a thread in your Textile node TODO
+   * Add a file to a thread in your Textile node
+   *
+   * @param {string} threadId Id of the thread
+   * @param {object} fileStream Nodejs file stream
+   * @param {string} fileName Name of the file in the stream
+   * @param {object} options Options object
+   * @param {string} options.schema Id of the schema to use for the mill
+   * @param {string} options.caption Caption to add to the image
    */
-  async addOrUpdate(threadId, options) {
+  async addFileStream(threadId, fileStream, fileName, options) {
+    const form = new FormData();
+    form.append("file", fileStream, fileName);
+
+    const headers = form.getHeaders();
+
+    return this.addFile(threadId, form, options, headers);
   }
 
   /**
-   * Add messages to a thread in your Textile node TODO
+   * Add a file to a thread in your Textile node
+   *
+   * @param {string} threadId Id of the thread
+   * @param {File} file FormData object
+   * @param {object} options Options object
+   * @param {string} options.schema Schema object to use for the mill
+   * @param {string} options.caption Caption to add to the image
+   * @param {object} [headers] Extra headers to send in the request
    */
-  async addMessages(threadId, msgs) {
-  }
+  async addFile(threadId, file, options, headers) {
+    if (!threadId) {
+      throw new Error(
+        "'threadId' must be provided when adding files to a thread"
+      );
+    }
 
-  /**
-   * Add files to a thread in your Textile node
-   */
-  async addFiles(threadId, files) {
-    // axios - all accepts string, plain object, ArrayBuffer, ArrayBufferView, URLSearchParams
-    // axios - browser accepts FormData, File, or Blob
-    //   FormData.append(key, USVString or Blob, filename(optional))
-    // axios - node accepts Stream, Buffer
+    // Make sure we have a schema
+    const opts = options || {};
+    if (!opts.schema) {
+      opts.schema = (await this.getById(threadId)).schema;
+    }
+
+    // Mill the file before adding it
+    const milled = await SchemaMiller.mill(
+      file,
+      opts.schema.links,
+      async link => {
+        const { data: res } = await this.mill.run(
+          link.mill,
+          link.opts,
+          file,
+          headers
+        );
+        res.name = link.name;
+        return res;
+      }
+    );
+
+    const resp = await this.sendPost(
+      `api/v0/threads/${threadId}/files`,
+      [],
+      opts,
+      [milled]
+    );
+    return resp.data;
   }
 }
 
 module.exports = Thread;
 
-},{"../core/api.js":4,"eventemitter2":38}],13:[function(require,module,exports){
+},{"../core/api.js":3,"../helpers/schema-miller":7,"./mills":11,"eventemitter2":40,"form-data":41}],15:[function(require,module,exports){
 module.exports = require('./lib/axios');
-},{"./lib/axios":15}],14:[function(require,module,exports){
+},{"./lib/axios":17}],16:[function(require,module,exports){
 (function (process){
 'use strict';
 
@@ -1002,7 +1243,7 @@ module.exports = function xhrAdapter(config) {
 };
 
 }).call(this,require('_process'))
-},{"../core/createError":21,"./../core/settle":24,"./../helpers/btoa":28,"./../helpers/buildURL":29,"./../helpers/cookies":31,"./../helpers/isURLSameOrigin":33,"./../helpers/parseHeaders":35,"./../utils":37,"_process":2}],15:[function(require,module,exports){
+},{"../core/createError":23,"./../core/settle":26,"./../helpers/btoa":30,"./../helpers/buildURL":31,"./../helpers/cookies":33,"./../helpers/isURLSameOrigin":35,"./../helpers/parseHeaders":37,"./../utils":39,"_process":2}],17:[function(require,module,exports){
 'use strict';
 
 var utils = require('./utils');
@@ -1056,7 +1297,7 @@ module.exports = axios;
 // Allow use of default import syntax in TypeScript
 module.exports.default = axios;
 
-},{"./cancel/Cancel":16,"./cancel/CancelToken":17,"./cancel/isCancel":18,"./core/Axios":19,"./defaults":26,"./helpers/bind":27,"./helpers/spread":36,"./utils":37}],16:[function(require,module,exports){
+},{"./cancel/Cancel":18,"./cancel/CancelToken":19,"./cancel/isCancel":20,"./core/Axios":21,"./defaults":28,"./helpers/bind":29,"./helpers/spread":38,"./utils":39}],18:[function(require,module,exports){
 'use strict';
 
 /**
@@ -1077,7 +1318,7 @@ Cancel.prototype.__CANCEL__ = true;
 
 module.exports = Cancel;
 
-},{}],17:[function(require,module,exports){
+},{}],19:[function(require,module,exports){
 'use strict';
 
 var Cancel = require('./Cancel');
@@ -1136,14 +1377,14 @@ CancelToken.source = function source() {
 
 module.exports = CancelToken;
 
-},{"./Cancel":16}],18:[function(require,module,exports){
+},{"./Cancel":18}],20:[function(require,module,exports){
 'use strict';
 
 module.exports = function isCancel(value) {
   return !!(value && value.__CANCEL__);
 };
 
-},{}],19:[function(require,module,exports){
+},{}],21:[function(require,module,exports){
 'use strict';
 
 var defaults = require('./../defaults');
@@ -1224,7 +1465,7 @@ utils.forEach(['post', 'put', 'patch'], function forEachMethodWithData(method) {
 
 module.exports = Axios;
 
-},{"./../defaults":26,"./../utils":37,"./InterceptorManager":20,"./dispatchRequest":22}],20:[function(require,module,exports){
+},{"./../defaults":28,"./../utils":39,"./InterceptorManager":22,"./dispatchRequest":24}],22:[function(require,module,exports){
 'use strict';
 
 var utils = require('./../utils');
@@ -1278,7 +1519,7 @@ InterceptorManager.prototype.forEach = function forEach(fn) {
 
 module.exports = InterceptorManager;
 
-},{"./../utils":37}],21:[function(require,module,exports){
+},{"./../utils":39}],23:[function(require,module,exports){
 'use strict';
 
 var enhanceError = require('./enhanceError');
@@ -1298,7 +1539,7 @@ module.exports = function createError(message, config, code, request, response) 
   return enhanceError(error, config, code, request, response);
 };
 
-},{"./enhanceError":23}],22:[function(require,module,exports){
+},{"./enhanceError":25}],24:[function(require,module,exports){
 'use strict';
 
 var utils = require('./../utils');
@@ -1386,7 +1627,7 @@ module.exports = function dispatchRequest(config) {
   });
 };
 
-},{"../cancel/isCancel":18,"../defaults":26,"./../helpers/combineURLs":30,"./../helpers/isAbsoluteURL":32,"./../utils":37,"./transformData":25}],23:[function(require,module,exports){
+},{"../cancel/isCancel":20,"../defaults":28,"./../helpers/combineURLs":32,"./../helpers/isAbsoluteURL":34,"./../utils":39,"./transformData":27}],25:[function(require,module,exports){
 'use strict';
 
 /**
@@ -1409,7 +1650,7 @@ module.exports = function enhanceError(error, config, code, request, response) {
   return error;
 };
 
-},{}],24:[function(require,module,exports){
+},{}],26:[function(require,module,exports){
 'use strict';
 
 var createError = require('./createError');
@@ -1437,7 +1678,7 @@ module.exports = function settle(resolve, reject, response) {
   }
 };
 
-},{"./createError":21}],25:[function(require,module,exports){
+},{"./createError":23}],27:[function(require,module,exports){
 'use strict';
 
 var utils = require('./../utils');
@@ -1459,7 +1700,7 @@ module.exports = function transformData(data, headers, fns) {
   return data;
 };
 
-},{"./../utils":37}],26:[function(require,module,exports){
+},{"./../utils":39}],28:[function(require,module,exports){
 (function (process){
 'use strict';
 
@@ -1559,7 +1800,7 @@ utils.forEach(['post', 'put', 'patch'], function forEachMethodWithData(method) {
 module.exports = defaults;
 
 }).call(this,require('_process'))
-},{"./adapters/http":14,"./adapters/xhr":14,"./helpers/normalizeHeaderName":34,"./utils":37,"_process":2}],27:[function(require,module,exports){
+},{"./adapters/http":16,"./adapters/xhr":16,"./helpers/normalizeHeaderName":36,"./utils":39,"_process":2}],29:[function(require,module,exports){
 'use strict';
 
 module.exports = function bind(fn, thisArg) {
@@ -1572,7 +1813,7 @@ module.exports = function bind(fn, thisArg) {
   };
 };
 
-},{}],28:[function(require,module,exports){
+},{}],30:[function(require,module,exports){
 'use strict';
 
 // btoa polyfill for IE<10 courtesy https://github.com/davidchambers/Base64.js
@@ -1610,7 +1851,7 @@ function btoa(input) {
 
 module.exports = btoa;
 
-},{}],29:[function(require,module,exports){
+},{}],31:[function(require,module,exports){
 'use strict';
 
 var utils = require('./../utils');
@@ -1678,7 +1919,7 @@ module.exports = function buildURL(url, params, paramsSerializer) {
   return url;
 };
 
-},{"./../utils":37}],30:[function(require,module,exports){
+},{"./../utils":39}],32:[function(require,module,exports){
 'use strict';
 
 /**
@@ -1694,7 +1935,7 @@ module.exports = function combineURLs(baseURL, relativeURL) {
     : baseURL;
 };
 
-},{}],31:[function(require,module,exports){
+},{}],33:[function(require,module,exports){
 'use strict';
 
 var utils = require('./../utils');
@@ -1749,7 +1990,7 @@ module.exports = (
   })()
 );
 
-},{"./../utils":37}],32:[function(require,module,exports){
+},{"./../utils":39}],34:[function(require,module,exports){
 'use strict';
 
 /**
@@ -1765,7 +2006,7 @@ module.exports = function isAbsoluteURL(url) {
   return /^([a-z][a-z\d\+\-\.]*:)?\/\//i.test(url);
 };
 
-},{}],33:[function(require,module,exports){
+},{}],35:[function(require,module,exports){
 'use strict';
 
 var utils = require('./../utils');
@@ -1835,7 +2076,7 @@ module.exports = (
   })()
 );
 
-},{"./../utils":37}],34:[function(require,module,exports){
+},{"./../utils":39}],36:[function(require,module,exports){
 'use strict';
 
 var utils = require('../utils');
@@ -1849,7 +2090,7 @@ module.exports = function normalizeHeaderName(headers, normalizedName) {
   });
 };
 
-},{"../utils":37}],35:[function(require,module,exports){
+},{"../utils":39}],37:[function(require,module,exports){
 'use strict';
 
 var utils = require('./../utils');
@@ -1904,7 +2145,7 @@ module.exports = function parseHeaders(headers) {
   return parsed;
 };
 
-},{"./../utils":37}],36:[function(require,module,exports){
+},{"./../utils":39}],38:[function(require,module,exports){
 'use strict';
 
 /**
@@ -1933,7 +2174,7 @@ module.exports = function spread(callback) {
   };
 };
 
-},{}],37:[function(require,module,exports){
+},{}],39:[function(require,module,exports){
 'use strict';
 
 var bind = require('./helpers/bind');
@@ -2238,7 +2479,7 @@ module.exports = {
   trim: trim
 };
 
-},{"./helpers/bind":27,"is-buffer":39}],38:[function(require,module,exports){
+},{"./helpers/bind":29,"is-buffer":42}],40:[function(require,module,exports){
 (function (process){
 /*!
  * EventEmitter2
@@ -3024,7 +3265,11 @@ module.exports = {
 }();
 
 }).call(this,require('_process'))
-},{"_process":2}],39:[function(require,module,exports){
+},{"_process":2}],41:[function(require,module,exports){
+/* eslint-env browser */
+module.exports = typeof self == 'object' ? self.FormData : window.FormData;
+
+},{}],42:[function(require,module,exports){
 /*!
  * Determine if an object is a Buffer
  *
@@ -3045,6 +3290,106 @@ function isBuffer (obj) {
 // For Node v0.10 support. Remove this eventually.
 function isSlowBuffer (obj) {
   return typeof obj.readFloatLE === 'function' && typeof obj.slice === 'function' && isBuffer(obj.slice(0, 0))
+}
+
+},{}],43:[function(require,module,exports){
+
+/**
+ * Topological sorting function
+ *
+ * @param {Array} edges
+ * @returns {Array}
+ */
+
+module.exports = function(edges) {
+  return toposort(uniqueNodes(edges), edges)
+}
+
+module.exports.array = toposort
+
+function toposort(nodes, edges) {
+  var cursor = nodes.length
+    , sorted = new Array(cursor)
+    , visited = {}
+    , i = cursor
+    // Better data structures make algorithm much faster.
+    , outgoingEdges = makeOutgoingEdges(edges)
+    , nodesHash = makeNodesHash(nodes)
+
+  // check for unknown nodes
+  edges.forEach(function(edge) {
+    if (!nodesHash.has(edge[0]) || !nodesHash.has(edge[1])) {
+      throw new Error('Unknown node. There is an unknown node in the supplied edges.')
+    }
+  })
+
+  while (i--) {
+    if (!visited[i]) visit(nodes[i], i, new Set())
+  }
+
+  return sorted
+
+  function visit(node, i, predecessors) {
+    if(predecessors.has(node)) {
+      var nodeRep
+      try {
+        nodeRep = ", node was:" + JSON.stringify(node)
+      } catch(e) {
+        nodeRep = ""
+      }
+      throw new Error('Cyclic dependency' + nodeRep)
+    }
+
+    if (!nodesHash.has(node)) {
+      throw new Error('Found unknown node. Make sure to provided all involved nodes. Unknown node: '+JSON.stringify(node))
+    }
+
+    if (visited[i]) return;
+    visited[i] = true
+
+    var outgoing = outgoingEdges.get(node) || new Set()
+    outgoing = Array.from(outgoing)
+
+    if (i = outgoing.length) {
+      predecessors.add(node)
+      do {
+        var child = outgoing[--i]
+        visit(child, nodesHash.get(child), predecessors)
+      } while (i)
+      predecessors.delete(node)
+    }
+
+    sorted[--cursor] = node
+  }
+}
+
+function uniqueNodes(arr){
+  var res = new Set()
+  for (var i = 0, len = arr.length; i < len; i++) {
+    var edge = arr[i]
+    res.add(edge[0])
+    res.add(edge[1])
+  }
+  return Array.from(res)
+}
+
+function makeOutgoingEdges(arr){
+  var edges = new Map()
+  for (var i = 0, len = arr.length; i < len; i++) {
+    var edge = arr[i]
+    if (!edges.has(edge[0])) edges.set(edge[0], new Set())
+    if (!edges.has(edge[1])) edges.set(edge[1], new Set())
+    edges.get(edge[0]).add(edge[1])
+  }
+  return edges
+}
+
+function makeNodesHash(arr){
+  var res = new Map()
+  for (var i = 0, len = arr.length; i < len; i++) {
+    res.set(arr[i], i)
+  }
+  return res
 }
 
 },{}]},{},[6]);

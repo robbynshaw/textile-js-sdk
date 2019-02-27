@@ -25,7 +25,9 @@
   "license": "MIT",
   "dependencies": {
     "axios": "^0.18.0",
-    "eventemitter2": "^5.0.1"
+    "eventemitter2": "^5.0.1",
+    "form-data": "^2.3.3",
+    "toposort": "^2.0.2"
   },
   "devDependencies": {
     "chai": "^4.2.0",

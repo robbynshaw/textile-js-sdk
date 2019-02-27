@@ -36,8 +36,10 @@ function getOpts(opts) {
     .join(",");
 }
 
-function createHeaders(args, opts) {
+function createHeaders(args, opts, headers) {
+  const h = headers || {};
   return {
+    ...h,
     "X-Textile-Args": getArgs(args),
     "X-Textile-Opts": getOpts(opts)
   };
@@ -73,11 +75,31 @@ class API {
    * @param {Object} opts An object of options to pass as Textile options headers
    * @param {Object} data An object of data to post
    */
-  async sendPost(url, args, opts, data) {
+  async sendPost(url, args, opts, data, headers) {
     return this.con()({
       method: "post",
       url,
-      headers: createHeaders(args, opts),
+      headers: createHeaders(args, opts, headers),
+      data
+    });
+  }
+
+  /**
+   * Make a post request to the Textile node using a multi-part form
+   *
+   * @param {string} url The relative URL of the API endpoint
+   * @param {string[]} args An array of arguments to pass as Textile args headers
+   * @param {Object} opts An object of options to pass as Textile options headers
+   * @param {Object} data An object of data to post
+   */
+  async sendPostMultiPart(url, args, opts, data, headers) {
+    const h = createHeaders(args, opts, headers);
+    h["Content-Type"] = "multipart/form-data";
+
+    return this.con()({
+      method: "post",
+      url,
+      headers: h,
       data
     });
   }
@@ -89,11 +111,11 @@ class API {
    * @param {string[]} args An array of arguments to pass as Textile args headers
    * @param {Object} opts An object of options to pass as Textile options headers
    */
-  async sendGet(url, args, opts) {
+  async sendGet(url, args, opts, headers) {
     return this.con()({
       method: "get",
       url,
-      headers: createHeaders(args, opts)
+      headers: createHeaders(args, opts, headers)
     });
   }
 }

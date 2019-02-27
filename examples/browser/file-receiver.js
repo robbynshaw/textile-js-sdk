@@ -10,8 +10,6 @@ const { EventEmitter2 } = require("eventemitter2");
  * @param {bool} [options.throwOnNotImplemented] Throw an error when non-image types are processed
  *
  * @example
- * const { FileReceiver } = require("textile-js-sdk");
- *
  * const container = document.querySelector("#dropZone");
  * const fr = new FileReceiver();
  * fr.on("file.received", file => {
